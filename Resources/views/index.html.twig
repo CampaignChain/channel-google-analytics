@@ -1,0 +1,18 @@
+{#
+This file is part of the CampaignChain package.
+
+(c) CampaignChain Inc. <info@campaignchain.com>
+
+For the full copyright and license information, please view the LICENSE
+file that was distributed with this source code.
+#}
+
+{% extends 'CampaignChainCoreBundle:Base:base.html.twig' %}
+
+{% block body %}
+    <div class="jumbotron">
+        <p>Connect to the respective Google account by logging in to Google. Your username and password will remain with Google and will not be stored in this application.</p>
+        <p><a class="btn btn-primary btn-lg" role="button" onclick="popupwindow('{{ path('campaignchain_channel_google_analytics_login') }}','',600,600);">Connect with Google Analytics</a></p>
+    </div>
+
+{% endblock %}

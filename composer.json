@@ -1,0 +1,42 @@
+{
+    "name": "campaignchain/channel-google-analytics",
+    "description": "Connect with Google Analytics",
+    "keywords": ["google", "analytics", "campaignchain"],
+    "type": "campaignchain-channel",
+    "license": "Apache-2.0",
+    "homepage": "http://www.campaignchain.com",
+    "authors": [
+        {
+            "name": "CampaignChain Inc.",
+            "email": "info@campaignchain.com",
+            "homepage": "http://www.campaignchain.com"
+        }
+    ],
+    "support": {
+        "issues": "https://github.com/CampaignChain/campaignchain-ce/issues",
+        "docs": "http://doc.campaignchain.com"
+    },
+    "require": {
+        "campaignchain/core": "dev-master",
+        "campaignchain/security-authentication-client-oauth": "dev-master",
+        "google/apiclient": "1.0.*@beta"
+    },
+    "autoload": {
+        "psr-4": { "CampaignChain\\Channel\\GoogleAnalyticsBundle\\": "" }
+    },
+    "extra": {
+        "campaignchain": {
+            "kernel": {
+                "classes": [
+                    "CampaignChain\\Channel\\GoogleAnalyticsBundle\\CampaignChainChannelGoogleAnalyticsBundle"
+                ],
+                "routing":
+                {
+                    "name": "campaignchain_channel_google_analytics",
+                    "resource": "@CampaignChainChannelGoogleAnalyticsBundle/Resources/config/routing.yml",
+                    "prefix": "/"
+                }
+            }
+        }
+    }
+}

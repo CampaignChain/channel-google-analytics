@@ -1,0 +1,17 @@
+# This file is part of the CampaignChain package.
+#
+# (c) CampaignChain Inc. <info@campaignchain.com>
+#
+# For the full copyright and license information, please view the LICENSE
+# file that was distributed with this source code.
+
+modules:
+    campaignchain-google-analytics:
+        display_name: Google Analytics
+        description: Provides a channel for Google Analytics
+        channels:
+            - campaignchain/channel-google-analytics/campaignchain-google-analytics
+        routes: 
+            new: campaignchain_channel_google_analytics_create
+        hooks:
+            default:
