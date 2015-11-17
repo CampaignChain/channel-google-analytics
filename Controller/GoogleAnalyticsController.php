@@ -19,7 +19,7 @@ use Symfony\Component\HttpFoundation\Response;
 
 class GoogleAnalyticsController extends Controller
 {
-    const RESOURCE_OWNER = 'GoogleAnalytics';
+    const RESOURCE_OWNER = 'Google';
 
     private $applicationInfo = array(
         'key_labels' => array('id', 'App Key'),
