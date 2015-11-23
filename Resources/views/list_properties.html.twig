@@ -18,20 +18,25 @@ file that was distributed with this source code.
         <th>Name</th>
         <th>URL</th>
     </tr>
+    {% set thereIsNotSelected = false %}
     {% for profile in profiles %}
-
+        {%  if profile.webPropertyId not in dbProfileIds %}
+            {% set thereIsNotSelected = true %}
+        {% endif %}
         <tr>
             <td>
-
                 <input type="checkbox" name="google-analytics-property-id[]" value="{{ profile.accountId }}|{{ profile.webPropertyId }}" {%  if profile.webPropertyId in dbProfileIds %} disabled {% endif %}>
             </td>
-
             <td>{{ profile.webPropertyId }}</td>
             <td>{{ profile.name }}</td>
             <td>{{ profile.websiteUrl }}</td>
         </tr>
     {% endfor %}
 </table>
-<button class="btn btn-primary" type="submit">Connect Property</button>
+    {% if thereIsNotSelected %}
+        <button class="btn btn-primary" type="submit">Connect Property</button>
+    {% else %}
+        You are already imported all of your Properties!
+    {% endif %}
 </form>
 {% endblock %}

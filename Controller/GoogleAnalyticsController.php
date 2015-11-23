@@ -103,8 +103,18 @@ class GoogleAnalyticsController extends Controller
     public function createLocationAction(Request $request)
     {
 
+        $selectedIds = $request->get('google-analytics-property-id', []);
+
+        if (empty($selectedIds)) {
+            $this->addFlash('warning', 'Please select out at least one Property');
+
+            return $this->redirectToRoute('campaignchain_channel_google_analytics_list_properties');
+        }
+
         /** @var Token $token */
         $token = $request->getSession()->get('token');
+        $em = $this->getDoctrine()->getManager();
+        $token = $em->merge($token);
 
         $websiteChannelModule = $this->getDoctrine()->getRepository('CampaignChainCoreBundle:ChannelModule')->findOneBy([
             'identifier' => 'campaignchain-website'
@@ -114,7 +124,7 @@ class GoogleAnalyticsController extends Controller
             'identifier' => 'campaignchain-google-analytics'
         ]);
 
-        foreach ($request->get('google-analytics-property-id') as $analyticsId) {
+        foreach ($selectedIds as $analyticsId) {
             list($accountId, $profileId) = explode('|', $analyticsId);
             $analyticsClient = $this->get('campaignchain_report_google_analytics.service_client')->getService($token);
             $profile = $analyticsClient->management_webproperties->get($accountId, $profileId);
@@ -130,8 +140,6 @@ class GoogleAnalyticsController extends Controller
 
             $application = $oauthApp
                 ->getApplication(self::RESOURCE_OWNER);
-
-            $em = $this->getDoctrine()->getManager();
 
             $location = new Location();
             $location->setIdentifier($profile->getId());
@@ -166,9 +174,10 @@ class GoogleAnalyticsController extends Controller
 
             }
 
-            $tokenEntity = $em->merge($token);
-            $tokenEntity->setLocation($location);
-            $em->persist($tokenEntity);
+            $entityToken = clone $token;
+            $entityToken->setLocation($location);
+            $entityToken->setApplication($token->getApplication());
+            $em->persist($entityToken);
 
             $analyticsProfile = new Profile();
             $analyticsProfile->setAccountId($profile->getAccountId());
@@ -179,14 +188,14 @@ class GoogleAnalyticsController extends Controller
             $analyticsProfile->setLocation($location);
 
             $em->persist($analyticsProfile);
-
             $em->flush();
+
+            $this->addFlash(
+                'success',
+                'The Google Analytics Property <a href="#">'.$profile->getName().'</a> was connected successfully.'
+            );
         }
 
-        $this->get('session')->getFlashBag()->add(
-            'success',
-            'The Google Analytics Property <a href="#">'.$profile->getName().'</a> was connected successfully.'
-        );
         return $this->redirectToRoute('campaignchain_core_channel');
     }
 }
