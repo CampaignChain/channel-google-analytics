@@ -86,14 +86,16 @@ class GoogleAnalyticsController extends Controller
             foreach ($profiles as $profile) {
                 $allProfiles[] = $profile;
             }
-
         }
+        $profileIds = $this->getDoctrine()->getRepository('CampaignChainLocationGoogleAnalyticsBundle:Profile')->getGoogleIds();
+
 
         return $this->render(
             '@CampaignChainChannelGoogleAnalytics/list_properties.html.twig',
             array(
                 'page_title' => 'Connect with Google Analytics',
-                'profiles' => $allProfiles
+                'profiles' => $allProfiles,
+                'dbProfileIds' => $profileIds,
             )
         );
     }
@@ -103,74 +105,83 @@ class GoogleAnalyticsController extends Controller
 
         /** @var Token $token */
         $token = $request->getSession()->get('token');
-        list($accountId, $profileId) = explode('|', $request->get('google-analytics-property-id'));
-        $analyticsClient = $this->get('campaignchain_report_google_analytics.service_client')->getService($token);
-        $profile = $analyticsClient->management_webproperties->get($accountId, $profileId);
 
-        $wizard = $this->get('campaignchain.core.channel.wizard');
-        $wizard->setName($profile->getName());
-        // Get the location module.
-        $locationService = $this->get('campaignchain.core.location');
-        $locationModule = $locationService->getLocationModule('campaignchain/location-google-analytics', 'campaignchain-google-analytics');
+        $websiteChannelModule = $this->getDoctrine()->getRepository('CampaignChainCoreBundle:ChannelModule')->findOneBy([
+            'identifier' => 'campaignchain-website'
+        ]);
 
-        $oauthApp = $this->get('campaignchain.security.authentication.client.oauth.application');
+        $googleAnalyticsChannelModule = $this->getDoctrine()->getRepository('CampaignChainCoreBundle:ChannelModule')->findOneBy([
+            'identifier' => 'campaignchain-google-analytics'
+        ]);
 
-        $application = $oauthApp
-            ->getApplication(self::RESOURCE_OWNER);
+        foreach ($request->get('google-analytics-property-id') as $analyticsId) {
+            list($accountId, $profileId) = explode('|', $analyticsId);
+            $analyticsClient = $this->get('campaignchain_report_google_analytics.service_client')->getService($token);
+            $profile = $analyticsClient->management_webproperties->get($accountId, $profileId);
 
-        $em = $this->getDoctrine()->getManager();
+            $wizard = $this->get('campaignchain.core.channel.wizard');
+            $wizard->start(new Channel(), $googleAnalyticsChannelModule);
+            $wizard->setName($profile->getName());
+            // Get the location module.
+            $locationService = $this->get('campaignchain.core.location');
+            $locationModule = $locationService->getLocationModule('campaignchain/location-google-analytics', 'campaignchain-google-analytics');
 
-        $location = new Location();
-        $location->setIdentifier($profile->getId());
-        $location->setName($profile->getName());
-        $location->setLocationModule($locationModule);
-        $google_base_url = 'https://www.google.com/analytics/web/?authuser=1#report/visitors-overview/';
-        $location->setUrl($google_base_url.'a'.$profile->accountId.'w'.$profile->internalWebPropertyId.'p'.$profile->defaultProfileId);
-        $em->persist($location);
-        $em->flush();
-        $wizard->addLocation($location->getIdentifier(), $location);
+            $oauthApp = $this->get('campaignchain.security.authentication.client.oauth.application');
 
-        $channel = $wizard->persist();
-        $wizard->end();
-        //Check if the if the belonging website location exists, if not create a new website location
-        $website = $this->getDoctrine()
-            ->getRepository('CampaignChainCoreBundle:Location')
-            ->findOneBy(array('url'=> $profile->getWebsiteUrl()));
-        //Create website location that belongs to the GA location
-        if (!$website) {
-            $websiteLocationModule = $locationService->getLocationModule('campaignchain/location-website', 'campaignchain-website');
-            $websiteLocationName = ParserUtil::getHTMLTitle($profile->getWebsiteUrl());
-            $websiteLocation = new Location();
-            $websiteLocation->setLocationModule($websiteLocationModule);
-            $websiteLocation->setName($websiteLocationName);
-            $websiteLocation->setUrl($profile->getWebsiteUrl());
-            $em->persist($websiteLocation);
+            $application = $oauthApp
+                ->getApplication(self::RESOURCE_OWNER);
 
-            $websiteChannelModule = $this->getDoctrine()->getRepository('CampaignChainCoreBundle:ChannelModule')->findOneBy([
-                'identifier' => 'campaignchain-website'
-            ]);
-            $wizard->start(new Channel(), $websiteChannelModule);
-            $wizard->setName($websiteLocationName);
-            $wizard->addLocation($profile->getWebsiteUrl(), $websiteLocation);
-            $wizard->persist();
+            $em = $this->getDoctrine()->getManager();
 
+            $location = new Location();
+            $location->setIdentifier($profile->getId());
+            $location->setName($profile->getName());
+            $location->setLocationModule($locationModule);
+            $google_base_url = 'https://www.google.com/analytics/web/?authuser=1#report/visitors-overview/';
+            $location->setUrl($google_base_url . 'a' . $profile->accountId . 'w' . $profile->internalWebPropertyId . 'p' . $profile->defaultProfileId);
+            $em->persist($location);
+            $em->flush();
+            $wizard->addLocation($location->getIdentifier(), $location);
+
+            $channel = $wizard->persist();
+            $wizard->end();
+            //Check if the if the belonging website location exists, if not create a new website location
+            $website = $this->getDoctrine()
+                ->getRepository('CampaignChainCoreBundle:Location')
+                ->findOneBy(array('url' => $profile->getWebsiteUrl()));
+            //Create website location that belongs to the GA location
+            if (!$website) {
+                $websiteLocationModule = $locationService->getLocationModule('campaignchain/location-website', 'campaignchain-website');
+                $websiteLocationName = ParserUtil::getHTMLTitle($profile->getWebsiteUrl());
+                $websiteLocation = new Location();
+                $websiteLocation->setLocationModule($websiteLocationModule);
+                $websiteLocation->setName($websiteLocationName);
+                $websiteLocation->setUrl($profile->getWebsiteUrl());
+                $em->persist($websiteLocation);
+
+                $wizard->start(new Channel(), $websiteChannelModule);
+                $wizard->setName($websiteLocationName);
+                $wizard->addLocation($profile->getWebsiteUrl(), $websiteLocation);
+                $wizard->persist();
+
+            }
+
+            $tokenEntity = $em->merge($token);
+            $tokenEntity->setLocation($location);
+            $em->persist($tokenEntity);
+
+            $analyticsProfile = new Profile();
+            $analyticsProfile->setAccountId($profile->getAccountId());
+            $analyticsProfile->setProfileId($profile->getId());
+            $analyticsProfile->setIdentifier($profile->getId());
+            $analyticsProfile->setDisplayName($profile->getName());
+            $analyticsProfile->setIdentifier($profile->getWebsiteUrl());
+            $analyticsProfile->setLocation($location);
+
+            $em->persist($analyticsProfile);
+
+            $em->flush();
         }
-
-        $tokenEntity = $em->merge($token);
-        $tokenEntity->setLocation($location);
-        $em->persist($tokenEntity);
-
-        $analyticsProfile = new Profile();
-        $analyticsProfile->setAccountId($profile->getAccountId());
-        $analyticsProfile->setProfileId($profile->getId());
-        $analyticsProfile->setIdentifier($profile->getId());
-        $analyticsProfile->setDisplayName($profile->getName());
-        $analyticsProfile->setIdentifier($profile->getWebsiteUrl());
-        $analyticsProfile->setLocation($location);
-
-        $em->persist($analyticsProfile);
-
-        $em->flush();
 
         $this->get('session')->getFlashBag()->add(
             'success',

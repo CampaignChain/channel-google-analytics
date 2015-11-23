@@ -21,7 +21,11 @@ file that was distributed with this source code.
     {% for profile in profiles %}
 
         <tr>
-            <td><input type="radio" name="google-analytics-property-id" value="{{ profile.accountId }}|{{ profile.webPropertyId }}"></td>
+            <td>
+
+                <input type="checkbox" name="google-analytics-property-id[]" value="{{ profile.accountId }}|{{ profile.webPropertyId }}" {%  if profile.webPropertyId in dbProfileIds %} disabled {% endif %}>
+            </td>
+
             <td>{{ profile.webPropertyId }}</td>
             <td>{{ profile.name }}</td>
             <td>{{ profile.websiteUrl }}</td>
