@@ -10,12 +10,14 @@
 
 namespace CampaignChain\Channel\GoogleAnalyticsBundle\Controller;
 
+use CampaignChain\CoreBundle\Entity\Channel;
 use CampaignChain\CoreBundle\Entity\Location;
 use CampaignChain\Location\GoogleAnalyticsBundle\Entity\Profile;
 use CampaignChain\Security\Authentication\Client\OAuthBundle\Entity\Token;
 use Symfony\Bundle\FrameworkBundle\Controller\Controller;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use CampaignChain\CoreBundle\Util\ParserUtil;
 
 class GoogleAnalyticsController extends Controller
 {
@@ -122,13 +124,37 @@ class GoogleAnalyticsController extends Controller
         $location->setIdentifier($profile->getId());
         $location->setName($profile->getName());
         $location->setLocationModule($locationModule);
-        $location->setUrl($profile->getWebsiteUrl());
+        $google_base_url = 'https://www.google.com/analytics/web/?authuser=1#report/visitors-overview/';
+        $location->setUrl($google_base_url.'a'.$profile->accountId.'w'.$profile->internalWebPropertyId.'p'.$profile->defaultProfileId);
         $em->persist($location);
         $em->flush();
         $wizard->addLocation($location->getIdentifier(), $location);
 
         $channel = $wizard->persist();
         $wizard->end();
+        //Check if the if the belonging website location exists, if not create a new website location
+        $website = $this->getDoctrine()
+            ->getRepository('CampaignChainCoreBundle:Location')
+            ->findOneBy(array('url'=> $profile->getWebsiteUrl()));
+        //Create website location that belongs to the GA location
+        if (!$website) {
+            $websiteLocationModule = $locationService->getLocationModule('campaignchain/location-website', 'campaignchain-website');
+            $websiteLocationName = ParserUtil::getHTMLTitle($profile->getWebsiteUrl());
+            $websiteLocation = new Location();
+            $websiteLocation->setLocationModule($websiteLocationModule);
+            $websiteLocation->setName($websiteLocationName);
+            $websiteLocation->setUrl($profile->getWebsiteUrl());
+            $em->persist($websiteLocation);
+
+            $websiteChannelModule = $this->getDoctrine()->getRepository('CampaignChainCoreBundle:ChannelModule')->findOneBy([
+                'identifier' => 'campaignchain-website'
+            ]);
+            $wizard->start(new Channel(), $websiteChannelModule);
+            $wizard->setName($websiteLocationName);
+            $wizard->addLocation($profile->getWebsiteUrl(), $websiteLocation);
+            $wizard->persist();
+
+        }
 
         $tokenEntity = $em->merge($token);
         $tokenEntity->setLocation($location);
@@ -141,6 +167,7 @@ class GoogleAnalyticsController extends Controller
         $analyticsProfile->setDisplayName($profile->getName());
         $analyticsProfile->setIdentifier($profile->getWebsiteUrl());
         $analyticsProfile->setLocation($location);
+
         $em->persist($analyticsProfile);
 
         $em->flush();
