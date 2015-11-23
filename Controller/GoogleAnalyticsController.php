@@ -137,7 +137,7 @@ class GoogleAnalyticsController extends Controller
             $location->setIdentifier($profile->getId());
             $location->setName($profile->getName());
             $location->setLocationModule($locationModule);
-            $google_base_url = 'https://www.google.com/analytics/web/?authuser=1#report/visitors-overview/';
+            $google_base_url = 'https://www.google.com/analytics/web/#report/visitors-overview/';
             $location->setUrl($google_base_url . 'a' . $profile->accountId . 'w' . $profile->internalWebPropertyId . 'p' . $profile->defaultProfileId);
             $em->persist($location);
             $em->flush();
