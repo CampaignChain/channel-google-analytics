@@ -187,6 +187,9 @@ class GoogleAnalyticsController extends Controller
             $analyticsProfile->setIdentifier($profile->getWebsiteUrl());
             $analyticsProfile->setLocation($location);
 
+            $belongingLocation= $this->getDoctrine()->getRepository('CampaignChainCoreBundle:Location')->findOneByUrl($profile->getWebsiteUrl());
+            $analyticsProfile->setBelongingLocation($belongingLocation);
+
             $em->persist($analyticsProfile);
             $em->flush();
 
