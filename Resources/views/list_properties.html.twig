@@ -25,7 +25,7 @@ file that was distributed with this source code.
         {% endif %}
         <tr>
             <td>
-                <input type="checkbox" name="google-analytics-property-id[]" value="{{ profile.accountId }}|{{ profile.webPropertyId }}" {%  if profile.webPropertyId in dbProfileIds %} disabled {% endif %}>
+                <input type="checkbox" name="google-analytics-profile-id[]" value="{{ profile.accountId }}|{{ profile.webPropertyId }}|{{ profile.id }}" {%  if profile.id in dbProfileIds %} disabled {% endif %}>
             </td>
             <td>{{ profile.webPropertyId }}</td>
             <td>{{ profile.name }}</td>
