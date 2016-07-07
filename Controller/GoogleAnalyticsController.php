@@ -14,6 +14,7 @@ use CampaignChain\CoreBundle\Entity\Channel;
 use CampaignChain\CoreBundle\Entity\Location;
 use CampaignChain\Location\GoogleAnalyticsBundle\Entity\Profile;
 use CampaignChain\Security\Authentication\Client\OAuthBundle\Entity\Token;
+use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Symfony\Bundle\FrameworkBundle\Controller\Controller;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -87,6 +88,7 @@ class GoogleAnalyticsController extends Controller
                 $allProfiles[] = $profile;
             }
         }
+
         $profileIds = $this->getDoctrine()->getRepository('CampaignChainLocationGoogleAnalyticsBundle:Profile')->getGoogleIds();
 
 
@@ -103,7 +105,7 @@ class GoogleAnalyticsController extends Controller
     public function createLocationAction(Request $request)
     {
 
-        $selectedIds = $request->get('google-analytics-property-id', []);
+        $selectedIds = $request->get('google-analytics-profile-id', []);
 
         if (empty($selectedIds)) {
             $this->addFlash('warning', 'Please select out at least one Property');
@@ -116,18 +118,18 @@ class GoogleAnalyticsController extends Controller
         $em = $this->getDoctrine()->getManager();
         $token = $em->merge($token);
 
-        $websiteChannelModule = $this->getDoctrine()->getRepository('CampaignChainCoreBundle:ChannelModule')->findOneBy([
+        $websiteChannelModule = $em->getRepository('CampaignChainCoreBundle:ChannelModule')->findOneBy([
             'identifier' => 'campaignchain-website'
         ]);
 
-        $googleAnalyticsChannelModule = $this->getDoctrine()->getRepository('CampaignChainCoreBundle:ChannelModule')->findOneBy([
+        $googleAnalyticsChannelModule = $em->getRepository('CampaignChainCoreBundle:ChannelModule')->findOneBy([
             'identifier' => 'campaignchain-google-analytics'
         ]);
 
         foreach ($selectedIds as $analyticsId) {
-            list($accountId, $profileId) = explode('|', $analyticsId);
+            list($accountId, $propertyId, $profileId) = explode('|', $analyticsId);
             $analyticsClient = $this->get('campaignchain_report_google_analytics.service_client')->getService($token);
-            $profile = $analyticsClient->management_webproperties->get($accountId, $profileId);
+            $profile = $analyticsClient->management_profiles->get($accountId, $propertyId, $profileId);
 
             $wizard = $this->get('campaignchain.core.channel.wizard');
             $wizard->start(new Channel(), $googleAnalyticsChannelModule);
@@ -136,27 +138,34 @@ class GoogleAnalyticsController extends Controller
             $locationService = $this->get('campaignchain.core.location');
             $locationModule = $locationService->getLocationModule('campaignchain/location-google-analytics', 'campaignchain-google-analytics');
 
-            $oauthApp = $this->get('campaignchain.security.authentication.client.oauth.application');
-
-            $application = $oauthApp
-                ->getApplication(self::RESOURCE_OWNER);
-
             $location = new Location();
             $location->setIdentifier($profile->getId());
             $location->setName($profile->getName());
             $location->setLocationModule($locationModule);
             $google_base_url = 'https://www.google.com/analytics/web/#report/visitors-overview/';
-            $location->setUrl($google_base_url . 'a' . $profile->accountId . 'w' . $profile->internalWebPropertyId . 'p' . $profile->defaultProfileId);
+            $location->setUrl($google_base_url . 'a' . $profile->getAccountId() . 'w' . $profile->getInternalWebPropertyId() . 'p' . $profile->getId());
+
             $em->persist($location);
-            $em->flush();
+
+            try {
+                $em->flush();
+            } catch (UniqueConstraintViolationException $e) {
+                //This GA endpoint is already connected
+                $this->addFlash(
+                    'warning',
+                    'The Google Analytics Property <a href="#">'.$profile->getName().'</a> is already connected.'
+                );
+
+                continue;
+            }
+
             $wizard->addLocation($location->getIdentifier(), $location);
 
-            $channel = $wizard->persist();
+            $wizard->persist();
             $wizard->end();
             //Check if the if the belonging website location exists, if not create a new website location
-            $website = $this->getDoctrine()
-                ->getRepository('CampaignChainCoreBundle:Location')
-                ->findOneBy(array('url' => $profile->getWebsiteUrl()));
+            $website = $em->getRepository('CampaignChainCoreBundle:Location')
+                ->findOneByUrl($profile->getWebsiteUrl());
             //Create website location that belongs to the GA location
             if (!$website) {
                 $websiteLocationModule = $locationService->getLocationModule('campaignchain/location-website', 'campaignchain-website');
@@ -172,6 +181,7 @@ class GoogleAnalyticsController extends Controller
                 $wizard->addLocation($profile->getWebsiteUrl(), $websiteLocation);
                 $wizard->persist();
 
+                $website = $websiteLocation;
             }
 
             $entityToken = clone $token;
@@ -181,14 +191,13 @@ class GoogleAnalyticsController extends Controller
 
             $analyticsProfile = new Profile();
             $analyticsProfile->setAccountId($profile->getAccountId());
+            $analyticsProfile->setPropertyId($profile->getWebPropertyId());
             $analyticsProfile->setProfileId($profile->getId());
             $analyticsProfile->setIdentifier($profile->getId());
             $analyticsProfile->setDisplayName($profile->getName());
-            $analyticsProfile->setIdentifier($profile->getWebsiteUrl());
             $analyticsProfile->setLocation($location);
 
-            $belongingLocation= $this->getDoctrine()->getRepository('CampaignChainCoreBundle:Location')->findOneByUrl($profile->getWebsiteUrl());
-            $analyticsProfile->setBelongingLocation($belongingLocation);
+            $analyticsProfile->setBelongingLocation($website);
 
             $em->persist($analyticsProfile);
             $em->flush();
