@@ -8,35 +8,54 @@ file that was distributed with this source code.
 #}
 
 {% extends 'CampaignChainCoreBundle:Base:base.html.twig' %}
+{% import 'CampaignChainCoreBundle:Macros:base.html.twig' as baseMacro %}
 
 {% block body %}
-<form action="{{ path('campaignchain_channel_google_analytics_connect_location') }}" method="POST">
-<table class="table table-striped">
-    <tr>
-        <th></th>
-        <th>Property ID</th>
-        <th>Name</th>
-        <th>URL</th>
-    </tr>
-    {% set thereIsNotSelected = false %}
-    {% for profile in profiles %}
-        {%  if profile.webPropertyId not in dbProfileIds %}
-            {% set thereIsNotSelected = true %}
-        {% endif %}
-        <tr>
-            <td>
-                <input type="checkbox" name="google-analytics-profile-id[]" value="{{ profile.accountId }}|{{ profile.webPropertyId }}|{{ profile.id }}" {%  if profile.id in dbProfileIds %} disabled {% endif %}>
-            </td>
-            <td>{{ profile.webPropertyId }}</td>
-            <td>{{ profile.name }}</td>
-            <td>{{ profile.websiteUrl }}</td>
-        </tr>
-    {% endfor %}
-</table>
-    {% if thereIsNotSelected %}
-        <button class="btn btn-primary" type="submit">Connect Property</button>
-    {% else %}
-        You are already imported all of your Properties!
+    {% embed 'AvanzuAdminThemeBundle:Widgets:box-widget.html.twig' %}
+        {% block box_before %}
+            <form action="{{ path('campaignchain_channel_google_analytics_connect_location') }}" method="POST">
+        {% endblock %}
+        {% block box_title %}Google Analytics Properties{% endblock %}
+        {% block box_body %}
+            <table class="table table-striped">
+                <tr>
+                    <th></th>
+                    <th>Property ID</th>
+                    <th>Name</th>
+                    <th>URL</th>
+                </tr>
+                {% for profile in profiles %}
+                    <tr>
+                        <td>
+                            <input
+                                type="checkbox"
+                                name="google-analytics-profile-id[]"
+                                value="{{ profile.accountId }}|{{ profile.webPropertyId }}|{{ profile.id }}"
+                                {%  if profile.webPropertyId in dbProfileIds %} disabled="disabled" checked="checked" {% endif %}
+                            >
+                        </td>
+                        <td>{{ profile.webPropertyId }}</td>
+                        <td>{{ profile.name }}</td>
+                        <td>{{ profile.websiteUrl }}</td>
+                    </tr>
+                {% endfor %}
+            </table>
+        {% endblock %}
+        {% block box_footer %}
+            <div class="btn-group">
+                <button
+                    class="btn btn-primary{% if all_connected == true %} disabled{% endif %}"
+                    type="submit"
+                >Connect Property</button>
+                <a href="{{ path('campaignchain_core_location') }}" class="btn btn-default" role="button" data-tooltip="true" data-placement="top" data-original-title="Cancel"><i class="fa fa-close"></i></a>
+            </div>
+        {% endblock %}
+        {% block box_after %}</form>{% endblock %}
+    {% endembed %}
+{% endblock %}
+
+{% block flashbag %}
+    {% if all_connected == true %}
+    {{ baseMacro.flashbag('info', 'You already imported all of your properties.') }}
     {% endif %}
-</form>
 {% endblock %}

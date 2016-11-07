@@ -87,17 +87,21 @@ class GoogleAnalyticsController extends Controller
         $token = $request->getSession()->get('token');
         $analyticsClient = $this->get('campaignchain_report_google_analytics.service_client')->getService($token);
 
+        $profileIds = $this->getDoctrine()->getRepository('CampaignChainLocationGoogleAnalyticsBundle:Profile')->getGoogleIds();
+
         $allProfiles = [];
+        $allConnected = true;
         foreach ($analyticsClient->management_accounts->listManagementAccounts() as $account) {
             $profiles = $analyticsClient->management_profiles
                 ->listManagementProfiles($account->getId(), '~all');
+            /** @var \Google_Service_Analytics_Profile $profile */
             foreach ($profiles as $profile) {
                 $allProfiles[] = $profile;
+                if(!in_array($profile->getWebPropertyId(), $profileIds)){
+                    $allConnected = false;
+                }
             }
         }
-
-        $profileIds = $this->getDoctrine()->getRepository('CampaignChainLocationGoogleAnalyticsBundle:Profile')->getGoogleIds();
-
 
         return $this->render(
             '@CampaignChainChannelGoogleAnalytics/list_properties.html.twig',
@@ -105,6 +109,7 @@ class GoogleAnalyticsController extends Controller
                 'page_title' => 'Connect with Google Analytics',
                 'profiles' => $allProfiles,
                 'dbProfileIds' => $profileIds,
+                'all_connected' => $allConnected,
             )
         );
     }
@@ -115,7 +120,7 @@ class GoogleAnalyticsController extends Controller
         $selectedIds = $request->get('google-analytics-profile-id', []);
 
         if (empty($selectedIds)) {
-            $this->addFlash('warning', 'Please select out at least one Property');
+            $this->addFlash('warning', 'Please select at least one Google Analytics property');
 
             return $this->redirectToRoute('campaignchain_channel_google_analytics_list_properties');
         }
@@ -136,6 +141,7 @@ class GoogleAnalyticsController extends Controller
         foreach ($selectedIds as $analyticsId) {
             list($accountId, $propertyId, $profileId) = explode('|', $analyticsId);
             $analyticsClient = $this->get('campaignchain_report_google_analytics.service_client')->getService($token);
+            /** @var \Google_Service_Analytics_Profile $profile */
             $profile = $analyticsClient->management_profiles->get($accountId, $propertyId, $profileId);
 
             $wizard = $this->get('campaignchain.core.channel.wizard');
