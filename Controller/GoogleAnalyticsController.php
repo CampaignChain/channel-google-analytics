@@ -221,6 +221,6 @@ class GoogleAnalyticsController extends Controller
             );
         }
 
-        return $this->redirectToRoute('campaignchain_core_channel');
+        return $this->redirectToRoute('campaignchain_core_location');
     }
 }
