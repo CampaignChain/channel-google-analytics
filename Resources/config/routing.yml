@@ -6,22 +6,22 @@
 # file that was distributed with this source code.
 
 campaignchain_channel_google_analytics_create:
-    pattern: /channel/google-analytics/create
+    path: /channel/google-analytics/create
     defaults: { _controller: CampaignChainChannelGoogleAnalyticsBundle:GoogleAnalytics:create }
     
 
 campaignchain_channel_google_analytics_login:
-    pattern: /channel/google-analytics/login
+    path: /channel/google-analytics/login
     defaults: { _controller: CampaignChainChannelGoogleAnalyticsBundle:GoogleAnalytics:login }
 
 
 campaignchain_channel_google_analytics_list_properties:
-    pattern: /channel/google-analytics/properties
+    path: /channel/google-analytics/properties
     defaults: { _controller: CampaignChainChannelGoogleAnalyticsBundle:GoogleAnalytics:listProperties }
 
 
 campaignchain_channel_google_analytics_connect_location:
-    pattern: /channel/google-analytics/connect
+    path: /channel/google-analytics/connect
     defaults: { _controller: CampaignChainChannelGoogleAnalyticsBundle:GoogleAnalytics:createLocation }
 
 
