@@ -17,8 +17,8 @@
         "docs": "http://doc.campaignchain.com"
     },
     "require": {
-        "campaignchain/core": "dev-master",
-        "campaignchain/security-authentication-client-oauth": "dev-master",
+        "campaignchain/core": "1.0.x-dev",
+        "campaignchain/security-authentication-client-oauth": "1.0.x-dev",
         "google/apiclient": "1.0.*@beta"
     },
     "autoload": {
