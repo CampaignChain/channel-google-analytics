@@ -9,6 +9,5 @@ services:
     campaignchain.channel.google_analytics.rest_client:
         class: CampaignChain\Channel\GoogleAnalyticsBundle\Service\RestClient
         arguments:
-            - "@campaignchain.core.location"
-            - "@campaignchain.security.authentication.client.oauth.application"
+            - "@doctrine"
             - "@campaignchain.security.authentication.client.oauth.token"

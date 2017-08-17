@@ -15,88 +15,163 @@
  * limitations under the License.
  */
 
-CampaignChain\Channel\GoogleAnalyticsBundle\Service;
+namespace CampaignChain\Channel\GoogleAnalyticsBundle\Service;
 
+use CampaignChain\CoreBundle\Entity\Location;
 use CampaignChain\CoreBundle\EntityService\LocationService;
+use CampaignChain\Location\GoogleAnalyticsBundle\Entity\Profile;
+use CampaignChain\Security\Authentication\Client\OAuthBundle\Entity\Token;
 use CampaignChain\Security\Authentication\Client\OAuthBundle\EntityService\ApplicationService;
 use CampaignChain\Security\Authentication\Client\OAuthBundle\EntityService\TokenService;
+use Doctrine\ORM\EntityManager;
+use Symfony\Bridge\Doctrine\ManagerRegistry;
 
 class RestClient
 {
-
     /**
-     * @var LocationService
+     * @var \Google_Service_AnalyticsReporting
      */
-    private $locationService;
-
-    /**
-     * @var ApplicationService
-     */
-    private $applicationService;
+    private $client;
 
     /**
      * @var TokenService
      */
     private $tokenService;
 
-    const RESOURCE_OWNER = 'Google';
-
-    public function __construct(LocationService $locationService, ApplicationService $applicationService, TokenService $tokenService)
-    {
-        $this->locationService = $locationService;
-        $this->applicationService = $applicationService;
-        $this->tokenService = $tokenService;
-    }
+    /**
+     * @var EntityManager
+     */
+    private $em;
 
     /**
-     * @return \Google_Service_Analytics
-     * @throws \Exception
-     * @throws \Google_Exception
+     * @var Profile
      */
-    public function getService($token = null)
+    private $profile;
+
+    public function __construct(ManagerRegistry $doctrine, TokenService $tokenService)
     {
-
-
-        $application = $this
-            ->applicationService
-            ->getApplication(self::RESOURCE_OWNER);
-
-        if ($token === null) {
-            $token = $this->getToken();
-        }
-
-        $authConfig = array(
-            'web' => array(
-                'client_id' => $application->getKey(),
-                'client_secret' => $application->getSecret()
-
-            )
-        );
-
-        $client = new \Google_Client();
-        $client->setAuthConfig(json_encode($authConfig));
-        $client->setAccessToken(
-            json_encode(
-                array(
-                    'access_token' => $token->getAccessToken(),
-                    'refresh_token' => $token->getRefreshToken(),
-                )
-            )
-        );
-        return new \Google_Service_Analytics($client);
-
+        $this->tokenService = $tokenService;
+        $this->em = $doctrine->getManager();
     }
 
-    private function getToken()
+    public function connectByLocation(Location $location)
     {
-        $locationModule = $this
-            ->locationService
-            ->getLocationModule('campaignchain/location-google-analytics', 'campaignchain-google-analytics');
+        // Get Access Token and Token Secret
+        $token = $this->tokenService->getToken($location);
 
-        foreach($locationModule->getLocations() as $location) {
-            return $this->tokenService->getToken($location);
-        }
+        $profileRepo = $this->em->getRepository('CampaignChainLocationGoogleAnalyticsBundle:Profile');
+        $this->profile = $profileRepo->findOneBy(array('location' => $location));
 
-        return null;
+        return $this->connect($token);
+    }
+
+    public function connect(Token $token)
+    {
+        $client = new \Google_Client();
+        $client->setClientId($token->getApplication()->getKey());
+        $client->setClientSecret($token->getApplication()->getSecret());
+        $client->setAccessType("offline");
+        $client->setAccessToken(
+            array(
+                'access_token' => $token->getAccessToken(),
+                'refresh_token' => $token->getRefreshToken(),
+                'expires_in' => $token->getExpiresIn(),
+            )
+        );
+        $client->addScope([\Google_Service_Analytics::ANALYTICS_READONLY]);
+        $this->client = new \Google_Service_AnalyticsReporting($client);
+
+        return $this;
+    }
+
+    public function getTraffic($startDate, $endDate, $metrics, $segment)
+    {
+        throw new \Exception('Transitioning to Google API version 2.0 - still work in progress');
+        return $this->client->data_ga->get('ga:' . $this->profile->getProfileId(), $startDate, $endDate, $metrics, array(
+            'dimensions' => 'ga:date',
+            'segment' => $segment,
+        ));
+    }
+
+    public function getMostActiveVisitors(
+        $startDate, $endDate,
+        $dimensionName,
+        $minSessions, $minAvgSessionDuration, $maxBounceRate
+    )
+    {
+        /*
+         * Date ranges
+         */
+        $dateRange = new \Google_Service_AnalyticsReporting_DateRange();
+        $dateRange->setStartDate($startDate);
+        $dateRange->setEndDate($endDate);
+
+        /*
+         * Metrics
+         */
+        $sessions = new \Google_Service_AnalyticsReporting_Metric();
+        $sessions->setExpression("ga:sessions");
+        $sessions->setAlias("sessions");
+
+        $avgSessionDuration = new \Google_Service_AnalyticsReporting_Metric();
+        $avgSessionDuration->setExpression("ga:avgSessionDuration");
+        $avgSessionDuration->setAlias("avgSessionDuration");
+
+        $bounceRate = new \Google_Service_AnalyticsReporting_Metric();
+        $bounceRate->setExpression("ga:bounceRate");
+        $bounceRate->setAlias("bounceRate");
+
+        /*
+         * Metrics filters
+         */
+        $sessionsFilter = new \Google_Service_AnalyticsReporting_MetricFilter();
+        $sessionsFilter->setMetricName('ga:sessions');
+        $sessionsFilter->setOperator('GREATER_THAN');
+        $sessionsFilter->setComparisonValue((string) $minSessions);
+
+        $avgSessionDurationFilter = new \Google_Service_AnalyticsReporting_MetricFilter();
+        $avgSessionDurationFilter->setMetricName('ga:avgSessionDuration');
+        $avgSessionDurationFilter->setOperator('GREATER_THAN');
+        $avgSessionDurationFilter->setComparisonValue((string) $minAvgSessionDuration);
+
+        $bounceRateFilter = new \Google_Service_AnalyticsReporting_MetricFilter();
+        $bounceRateFilter->setMetricName('ga:bounceRate');
+        $bounceRateFilter->setOperator('LESS_THAN');
+        $bounceRateFilter->setComparisonValue((string) $maxBounceRate);
+
+        $activeVisitorsFilterClause = new \Google_Service_AnalyticsReporting_MetricFilterClause();
+        $activeVisitorsFilterClause->setOperator('AND');
+        $activeVisitorsFilterClause->setFilters([$sessionsFilter, $avgSessionDurationFilter, $bounceRateFilter]);
+
+        // Create the Dimension objects.
+        $dimension = new \Google_Service_AnalyticsReporting_Dimension();
+        $dimension->setName("ga:".$dimensionName);
+
+        // Create the Pivot object.
+//        $pivot = new \Google_Service_AnalyticsReporting_Pivot();
+//        $pivot->setDimensions(array($age));
+//        $pivot->setMaxGroupCount(3);
+//        $pivot->setStartGroup(0);
+//        $pivot->setMetrics(array($sessions, $pageviews));
+
+        // Create the ReportRequest object.
+        $request = new \Google_Service_AnalyticsReporting_ReportRequest();
+        $request->setViewId($this->profile->getProfileId());
+        $request->setDateRanges(array($dateRange));
+        $request->setDimensions(array($dimension));
+        //$request->setPivots(array($pivot));
+        $request->setMetrics(array($sessions, $avgSessionDuration, $bounceRate));
+        $request->setMetricFilterClauses([$activeVisitorsFilterClause]
+        );
+
+        // Create the GetReportsRequest object.
+        $getReport = new \Google_Service_AnalyticsReporting_GetReportsRequest();
+        $getReport->setReportRequests(array($request));
+
+        // Call the batchGet method.
+        $body = new \Google_Service_AnalyticsReporting_GetReportsRequest();
+        $body->setReportRequests( array($request) );
+        /** @var \Google_Service_AnalyticsReporting_Report $report */
+        return $this->client->reports->batchGet( $body )->getReports()[0];
     }
 }
