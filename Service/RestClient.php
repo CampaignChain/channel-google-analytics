@@ -31,7 +31,17 @@ class RestClient
     /**
      * @var \Google_Service_AnalyticsReporting
      */
-    private $client;
+    private $reporting;
+
+    /**
+     * @var \Google_Service_Analytics_Resource_ManagementAccounts
+     */
+    private $accounts;
+
+    /**
+     * @var \Google_Service_Analytics_Resource_ManagementProfiles
+     */
+    private $profiles;
 
     /**
      * @var TokenService
@@ -68,10 +78,8 @@ class RestClient
     public function connect(Token $token)
     {
         $client = new \Google_Client();
-        $client->setAuthConfig(array(
-            'client_id' => $token->getApplication()->getKey(),
-            'client_secret' => $token->getApplication()->getSecret(),
-        ));
+        $client->setClientId($token->getApplication()->getKey());
+        $client->setClientSecret($token->getApplication()->getSecret());
         $client->setAccessType("offline");
         $client->setAccessToken(
             array(
@@ -81,15 +89,18 @@ class RestClient
             )
         );
         $client->addScope([\Google_Service_Analytics::ANALYTICS_READONLY]);
-        $this->client = new \Google_Service_AnalyticsReporting($client);
+        $this->reporting = new \Google_Service_AnalyticsReporting($client);
+        $analytics = new \Google_Service_Analytics($client);
+        $this->accounts = $analytics->management_accounts;
+        $this->profiles = $analytics->management_profiles;
 
         return $this;
     }
 
     public function getTraffic($startDate, $endDate, $metrics, $segment)
     {
-        throw new \Exception('Transitioning to Google API version 2.0 - still work in progress');
-        return $this->client->data_ga->get('ga:' . $this->profile->getProfileId(), $startDate, $endDate, $metrics, array(
+        throw new \Exception('Transitioning to Google API version 2.0');
+        return $this->reporting->data_ga->get('ga:' . $this->profile->getProfileId(), $startDate, $endDate, $metrics, array(
             'dimensions' => 'ga:date',
             'segment' => $segment,
         ));
@@ -174,6 +185,21 @@ class RestClient
         $body = new \Google_Service_AnalyticsReporting_GetReportsRequest();
         $body->setReportRequests( array($request) );
         /** @var \Google_Service_AnalyticsReporting_Report $report */
-        return $this->client->reports->batchGet( $body )->getReports()[0];
+        return $this->reporting->reports->batchGet( $body )->getReports()[0];
+    }
+
+    public function listManagementAccounts()
+    {
+        return $this->accounts->listManagementAccounts();
+    }
+
+    public function listManagementProfiles($accountId, $webPropertyId, $optParams = array())
+    {
+        return $this->profiles->listManagementProfiles($accountId, $webPropertyId, $optParams);
+    }
+
+    public function getManagementProfile($accountId, $webPropertyId, $profileId, $optParams = array())
+    {
+        return $this->profiles->get($accountId, $webPropertyId, $profileId, $optParams);
     }
 }

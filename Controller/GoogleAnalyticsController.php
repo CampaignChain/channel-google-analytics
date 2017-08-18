@@ -17,6 +17,7 @@
 
 namespace CampaignChain\Channel\GoogleAnalyticsBundle\Controller;
 
+use CampaignChain\Channel\GoogleAnalyticsBundle\Service\RestClient;
 use CampaignChain\CoreBundle\Entity\Channel;
 use CampaignChain\CoreBundle\Entity\Location;
 use CampaignChain\Location\GoogleAnalyticsBundle\Entity\Profile;
@@ -84,16 +85,16 @@ class GoogleAnalyticsController extends Controller
 
     public function listPropertiesAction(Request $request)
     {
-        $token = $request->getSession()->get('token');
-        $analyticsClient = $this->get('campaignchain_report_google_analytics.service_client')->getService($token);
+        /** @var RestClient $analyticsClient */
+        $analyticsClient = $this->get('campaignchain.channel.google_analytics.rest_client');
+        $analyticsClient->connect($request->getSession()->get('token'));
 
         $profileIds = $this->getDoctrine()->getRepository('CampaignChainLocationGoogleAnalyticsBundle:Profile')->getGoogleIds();
 
         $allProfiles = [];
         $allConnected = true;
-        foreach ($analyticsClient->management_accounts->listManagementAccounts() as $account) {
-            $profiles = $analyticsClient->management_profiles
-                ->listManagementProfiles($account->getId(), '~all');
+        foreach ($analyticsClient->listManagementAccounts() as $account) {
+            $profiles = $analyticsClient->listManagementProfiles($account->getId(), '~all');
             /** @var \Google_Service_Analytics_Profile $profile */
             foreach ($profiles as $profile) {
                 $allProfiles[] = $profile;
@@ -140,9 +141,11 @@ class GoogleAnalyticsController extends Controller
 
         foreach ($selectedIds as $analyticsId) {
             list($accountId, $propertyId, $profileId) = explode('|', $analyticsId);
-            $analyticsClient = $this->get('campaignchain_report_google_analytics.service_client')->getService($token);
+            /** @var RestClient $analyticsClient */
+            $analyticsClient = $this->get('campaignchain.channel.google_analytics.rest_client');
+            $analyticsClient->connect($request->getSession()->get('token'));
             /** @var \Google_Service_Analytics_Profile $profile */
-            $profile = $analyticsClient->management_profiles->get($accountId, $propertyId, $profileId);
+            $profile = $analyticsClient->getManagementProfile($accountId, $propertyId, $profileId);
 
             $wizard = $this->get('campaignchain.core.channel.wizard');
             $wizard->start(new Channel(), $googleAnalyticsChannelModule);
