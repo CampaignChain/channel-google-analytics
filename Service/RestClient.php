@@ -68,8 +68,10 @@ class RestClient
     public function connect(Token $token)
     {
         $client = new \Google_Client();
-        $client->setClientId($token->getApplication()->getKey());
-        $client->setClientSecret($token->getApplication()->getSecret());
+        $client->setAuthConfig(array(
+            'client_id' => $token->getApplication()->getKey(),
+            'client_secret' => $token->getApplication()->getSecret(),
+        ));
         $client->setAccessType("offline");
         $client->setAccessToken(
             array(
